@@ -8,11 +8,11 @@ from telegram.error import RetryAfter
 from telegram.ext import Application, CommandHandler, ContextTypes, ChatMemberHandler
 
 # ---------------------------
-# RENDER HOSTING (KEEP ALIVE)
+# RENDER HOSTING (PORT BIND)
 # ---------------------------
 app = Flask('')
 @app.route('/')
-def home(): return "FREAKY SYSTEM IS STABLE"
+def home(): return "SYSTEM ONLINE"
 def run(): app.run(host='0.0.0.0', port=os.environ.get('PORT', 8080))
 def keep_alive():
     t = Thread(target=run)
@@ -20,7 +20,7 @@ def keep_alive():
     t.start()
 
 # ---------------------------
-# CONFIGURATION
+# CONFIG (TERI ORIGINAL IDS)
 # ---------------------------
 TOKENS = [
     "8615633587:AAE_iSNVgMHHu8oRuKZsdWM1o6AZhKPMnfs", "8115841323:AAFyAg3yJVl3hgbsvsGQlHZsIBNj9hdaX0o",
@@ -31,89 +31,88 @@ TOKENS = [
 ]
 
 OWNERS = {8389568613, 8708136512}
-SPEED = 0.1
-running_chats = {} 
+GLOBAL_DELAY = 0.1 # 🔥 0.1 Per Second Speed
+running_tasks = {} # Isse stop command kaam karega
 bots = []
 
-# ---------------------------
-# YOUR HELP MENU (SCREENSHOT STYLE)
-# ---------------------------
-HELP_TEXT = """
-𝐓𝙷𝙴  𝐅𝚁𝙴𝙰𝙺𝚈  𝐌𝚄𝐒𝙴 < 🪐
-﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏
-──────𝐍𝚌'𝚜──────
-⤹/ncdark
-⤹/tmkcnc
-⤹/evonc
-⤹/marvelnc
-⤹/magicnc
-⤹/lndnc
-﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏
-──────𝐒𝚙𝚊𝚖───────
-⤹/texts
-⤹/shayari
-⤹/custom
-﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏
-──────𝐒𝚕𝚒𝚍𝚎𝚛──────
-⤹/alexa
-⤹/swipe
-﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏
-──────𝐎𝚠𝚗𝚎rer───────
-⤹/stopall
-⤹/bye
-﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏
-─────𝐄𝙽𝙹𝙾𝚈 ᥫ᭡.─────
-"""
+# --- TERI SCRIPT KE ORIGINAL PATTERNS ---
+DARK_EMOJIS = ["🕳️", "🌑", "👣", "🗝️", "🧬", "🔌", "⬛", "🦾", "📜", "🕯️", "🍷", "🥀", "🖤", "🕸️", "🗡️", "🎱", "🐦‍⬛", "🔮", "🌑", "🪄", "🌝", "🌚", "🌜", "🌛", "🌙", "⭐", "🌟", "✨", "🪐", "🌍", "🌠", "🌌", "☄️", "🌑", "🌒", "🌓", "🌔", "🌕", "🌖", "🌗", "🌘"]
+SWIPE_TEXTS = ["𝗧𝗘𝗥𝗜 𝗠𝗞𝗖 𝗦𝗔𝗦𝗧𝗜 𝗛𝗔𝗜 😡", "𝗖𝗛𝗟 𝗚𝗨𝗟𝗔𝗠𝗜 𝗞𝗥 𝗧𝗔𝗧𝗧𝗘 😆", "𝗘𝗞 𝗟𝗔𝗔‌𝗧 𝗠𝗜𝗘 𝗟𝗡𝗗 𝗖𝗛𝗔𝗧𝗧𝗔 𝗙𝗜𝗥𝗘𝗚𝗔 😆"]
 
 # ---------------------------
-# NON-STOP LOOPS (0.1s)
+# LOOPS (NON-STOP 0.1s)
 # ---------------------------
 async def nc_loop(bot, chat_id, text):
-    while running_chats.get(chat_id):
+    i = 0
+    while running_tasks.get(chat_id):
         try:
-            emo = random.choice(["🔥", "🌑", "⚡", "😈", "✨", "🪐"])
+            emo = DARK_EMOJIS[i % len(DARK_EMOJIS)]
             await bot.set_chat_title(chat_id, f"{text} {emo}")
-            await asyncio.sleep(SPEED)
+            i += 1
+            await asyncio.sleep(GLOBAL_DELAY)
         except RetryAfter as e: await asyncio.sleep(e.retry_after)
-        except Exception: await asyncio.sleep(0.5)
+        except: await asyncio.sleep(0.5)
 
 async def spam_loop(bot, chat_id, msg):
-    while running_chats.get(chat_id):
+    while running_tasks.get(chat_id):
         try:
             await bot.send_message(chat_id, msg)
-            await asyncio.sleep(SPEED)
+            await asyncio.sleep(GLOBAL_DELAY)
         except RetryAfter as e: await asyncio.sleep(e.retry_after)
-        except Exception: await asyncio.sleep(0.5)
+        except: await asyncio.sleep(0.5)
+
+async def swipe_loop(bot, chat_id, target_id):
+    i = 0
+    while running_tasks.get(chat_id):
+        try:
+            msg = SWIPE_TEXTS[i % len(SWIPE_TEXTS)]
+            await bot.send_message(chat_id, msg, reply_to_message_id=target_id)
+            i += 1
+            await asyncio.sleep(GLOBAL_DELAY)
+        except RetryAfter as e: await asyncio.sleep(e.retry_after)
+        except: await asyncio.sleep(0.5)
 
 # ---------------------------
-# COMMAND HANDLERS
+# COMMANDS (ORIGINAL NAMES)
 # ---------------------------
-async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id in OWNERS:
-        await update.message.reply_text(HELP_TEXT)
-
 async def ncdark(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id not in OWNERS: return
     cid = update.effective_chat.id
     txt = " ".join(context.args) or "FREAKY"
-    running_chats[cid] = True
+    running_tasks[cid] = True
     for b in bots: asyncio.create_task(nc_loop(b, cid, txt))
-    await update.message.reply_text("🚀 NC Non-stop Started (0.1s)!")
+    await update.message.reply_text("🚀 NC DARK STARTED @ 0.1s")
 
 async def texts(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id not in OWNERS: return
     cid = update.effective_chat.id
-    txt = " ".join(context.args) or "FREAKY ON TOP"
-    running_chats[cid] = True
+    txt = " ".join(context.args) or "FREAKY ON TOP 🔥"
+    running_tasks[cid] = True
     for b in bots: asyncio.create_task(spam_loop(b, cid, txt))
-    await update.message.reply_text("🔥 Spam Non-stop Started (0.1s)!")
+    await update.message.reply_text("🔥 SPAM STARTED @ 0.1s")
+
+async def swipe(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id not in OWNERS or not update.message.reply_to_message:
+        return await update.message.reply_text("Kisi message pe reply karke maar bkl!")
+    cid = update.effective_chat.id
+    mid = update.message.reply_to_message.message_id
+    running_tasks[cid] = True
+    for b in bots: asyncio.create_task(swipe_loop(b, cid, mid))
+    await update.message.reply_text("🌊 SWIPE STARTED @ 0.1s")
 
 async def stopall(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id not in OWNERS: return
-    cid = update.effective_chat.id
-    running_chats[cid] = False 
-    await update.message.reply_text("𝑂𝐾𝐼 𝑌𝐿𝐿 ¡! 🐣 (Everything Stopped)")
+    running_tasks[update.effective_chat.id] = False
+    await update.message.reply_text("𝑂𝐾𝐼 𝑌𝐿𝐿 ¡! 🐣")
 
+async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id in OWNERS:
+        from main_menu import HELP_TEXT # Agar help text badi hai
+        await update.message.reply_text("𝐓𝙷𝙴  𝐅𝚁𝙴𝙰𝙺𝚈  𝐌𝚄𝐒𝙴...\n/ncdark\n/texts\n/swipe\n/stopall")
+
+# ---------------------------
+# AUTO-ADMIN (EK KO POWER, SAB ADMIN)
+# ---------------------------
 async def auto_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat = update.effective_chat
     me = await context.bot.get_me()
@@ -126,18 +125,18 @@ async def auto_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 except: pass
 
 # ---------------------------
-# MAIN STARTUP
+# MAIN
 # ---------------------------
 async def main():
     keep_alive()
     for token in TOKENS:
         try:
             app = Application.builder().token(token).build()
-            app.add_handler(CommandHandler("help", help_cmd))
-            app.add_handler(CommandHandler("start", help_cmd))
             app.add_handler(CommandHandler("ncdark", ncdark))
             app.add_handler(CommandHandler("texts", texts))
+            app.add_handler(CommandHandler("swipe", swipe))
             app.add_handler(CommandHandler("stopall", stopall))
+            app.add_handler(CommandHandler("help", help_cmd))
             app.add_handler(ChatMemberHandler(auto_admin, ChatMemberHandler.MY_CHAT_MEMBER))
             
             await app.initialize()
