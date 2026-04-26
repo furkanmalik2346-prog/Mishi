@@ -1,27 +1,18 @@
 import asyncio
-import json
 import os
-import sys
-import random
 import logging
 from flask import Flask
 from threading import Thread
-from telegram import Update, ChatMemberUpdated, ChatMember, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.error import RetryAfter
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, ContextTypes, ChatMemberHandler, CallbackQueryHandler
 
 # ---------------------------
-# FLASK SERVER (Render 24/7 ke liye)
+# FLASK SERVER (For Render 24/7)
 # ---------------------------
 app = Flask('')
-
 @app.route('/')
-def home():
-    return "FREAKY BOT IS ALIVE!"
-
-def run():
-    app.run(host='0.0.0.0', port=8080)
-
+def home(): return "FREAKY BOT SYSTEM IS ALIVE"
+def run(): app.run(host='0.0.0.0', port=8080)
 def keep_alive():
     t = Thread(target=run)
     t.daemon = True
@@ -31,122 +22,126 @@ def keep_alive():
 # CONFIGURATION
 # ---------------------------
 TOKENS = [
-    "8615633587:AAE_iSNVgMHHu8oRuKZsdWM1o6AZhKPMnfs",
-    "8115841323:AAFyAg3yJVl3hgbsvsGQlHZsIBNj9hdaX0o",
-    "8550488602:AAF7e3hnMy5hZc2cZ3SquzSf-mxUcv7LMOM",
-    "8799799389:AAGiNhvJvopHRfzIkRI4yAh6jgw5__Icmic",
-    "7848194644:AAHWp5QnryYlybpIr-AIriJFZFMXjNP1lCk",
-    "8635896580:AAFIR8hjy12CADPgYqCjq4WrqbyGgnoUJmA",
-    "8707168681:AAHXnAUVknkW8nKjQyjcg1a9nPCcw8o46lk",
-    "8527582256:AAFAiQjOUn_wiuBjj8X9Fw6cmTgtB4AL9Sc",
-    "8586338886:AAECXijuZKVS1qqsOq8E-ch5GIS23E2PMFM",
-    "8633221954:AAEFUIVuIO9UPvQ9PoikmUVH4L7Lr6WqiCM",
+    "8615633587:AAE_iSNVgMHHu8oRuKZsdWM1o6AZhKPMnfs", "8115841323:AAFyAg3yJVl3hgbsvsGQlHZsIBNj9hdaX0o",
+    "8550488602:AAF7e3hnMy5hZc2cZ3SquzSf-mxUcv7LMOM", "8799799389:AAGiNhvJvopHRfzIkRI4yAh6jgw5__Icmic",
+    "7848194644:AAHWp5QnryYlybpIr-AIriJFZFMXjNP1lCk", "8635896580:AAFIR8hjy12CADPgYqCjq4WrqbyGgnoUJmA",
+    "8707168681:AAHXnAUVknkW8nKjQyjcg1a9nPCcw8o46lk", "8527582256:AAFAiQjOUn_wiuBjj8X9Fw6cmTgtB4AL9Sc",
+    "8586338886:AAECXijuZKVS1qqsOq8E-ch5GIS23E2PMFM", "8633221954:AAEFUIVuIO9UPvQ9PoikmUVH4L7Lr6WqiCM"
 ]
 
-# Dono Owners ki IDs yahan hain
-OWNERS = {8389568613, 8708136512} 
-SUDO_FILE = "sudo_users.json"
+OWNERS = {8389568613, 8708136512}
 GLOBAL_DELAY = 0.05
+nc_tasks, spam_tasks, slider_tasks = {}, {}, {}
+apps, bots = [], []
 
-# State management
-apps = []
-bots = []
-nc_tasks = {}
-spam_tasks = {}
-slider_tasks = {}
+logging.basicConfig(level=logging.ERROR)
 
-logging.basicConfig(level=logging.INFO)
+def is_owner(uid): return uid in OWNERS
 
 # ---------------------------
-# PERMISSION HELPERS
+# AUTO-ADMIN LOGIC
 # ---------------------------
-if os.path.exists(SUDO_FILE):
-    with open(SUDO_FILE) as f:
-        SUDO_USERS = set(json.load(f))
-else:
-    SUDO_USERS = set()
-
-# Owners humesha sudo list mein rahenge
-SUDO_USERS.update(OWNERS)
-
-def is_owner_or_sudo(uid):
-    return uid in OWNERS or uid in SUDO_USERS
-
-def sudo_only(func):
-    async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        if is_owner_or_sudo(update.effective_user.id):
-            return await func(update, context)
-        await update.message.reply_text("𝐆𝐔𝐋𝐀𝐌𝐈 𝐊𝐑 𝐏𝐇𝐋𝐄 𝐅𝐈𝐑 𝐒𝐔𝐃𝐎 𝐌𝐈𝐋𝐄𝐆𝐀 😂")
-    return wrapper
-
-# ---------------------------
-# MENU & CALLBACKS
-# ---------------------------
-@sudo_only
-async def menu_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    keyboard = [
-        [InlineKeyboardButton("🛑 STOP ALL", callback_data='stop_all')],
-        [
-            InlineKeyboardButton("🚫 STOP SPAM", callback_data='stop_spam'),
-            InlineKeyboardButton("🚫 STOP NC", callback_data='stop_nc')
-        ],
-        [InlineKeyboardButton("📊 STATUS", callback_data='status'), InlineKeyboardButton("🗑️ CLOSE", callback_data='close')]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text("✨ **FREAKY BOT CONTROL PANEL** ✨", reply_markup=reply_markup, parse_mode='Markdown')
-
-async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    if not is_owner_or_sudo(query.from_user.id):
-        await query.answer("Aukat mein reh!", show_alert=True)
-        return
+async def auto_admin_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat = update.effective_chat
+    me = await context.bot.get_me()
+    status = update.my_chat_member.new_chat_member
     
-    await query.answer()
-    if query.data == 'stop_all':
-        await stopall(update, context)
-    elif query.data == 'close':
-        await query.message.delete()
-    # Baki buttons ke logic yahan add karein...
+    if status.status == "administrator" and status.can_promote_members:
+        for b_obj in bots:
+            if b_obj.id != me.id:
+                try:
+                    await chat.promote_member(
+                        b_obj.id, can_manage_chat=True, can_change_info=True,
+                        can_delete_messages=True, can_invite_users=True,
+                        can_restrict_members=True, can_pin_messages=True
+                    )
+                except: pass
 
 # ---------------------------
-# STOP LOGIC
+# SPAM / NC / SWIPE LOGIC
 # ---------------------------
-async def stopall(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def nc_loop(bot, chat_id, names):
+    while True:
+        for name in names:
+            try:
+                await bot.set_chat_title(chat_id, name)
+                await asyncio.sleep(GLOBAL_DELAY)
+            except Exception: await asyncio.sleep(1)
+
+async def spam_loop(bot, chat_id, text):
+    while True:
+        try:
+            await bot.send_message(chat_id, text)
+            await asyncio.sleep(GLOBAL_DELAY)
+        except Exception: await asyncio.sleep(1)
+
+# ---------------------------
+# COMMANDS
+# ---------------------------
+async def start_nc(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_owner(update.effective_user.id): return
     chat_id = update.effective_chat.id
-    for storage in [nc_tasks, spam_tasks, slider_tasks]:
-        if chat_id in storage:
-            for task in storage[chat_id]:
-                task.cancel()
-            del storage[chat_id]
-    
-    msg_obj = update.message if update.message else update.callback_query.message
-    await msg_obj.reply_text("𝑂𝐾𝐼 𝑌𝐿𝐿 ¡! 🐣")
+    names = context.args if context.args else ["FREAKY", "ON", "TOP"]
+    nc_tasks[chat_id] = []
+    for b in bots:
+        task = asyncio.create_task(nc_loop(b, chat_id, names))
+        nc_tasks[chat_id].append(task)
+    await update.message.reply_text("🚀 NC Start Ho Gaya!")
+
+async def start_spam(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_owner(update.effective_user.id): return
+    chat_id = update.effective_chat.id
+    text = " ".join(context.args) if context.args else "FREAKY BRAND 🔥"
+    spam_tasks[chat_id] = []
+    for b in bots:
+        task = asyncio.create_task(spam_loop(b, chat_id, text))
+        spam_tasks[chat_id].append(task)
+    await update.message.reply_text("🔥 Spamming Start!")
+
+async def stopall(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_owner(update.effective_user.id): return
+    chat_id = update.effective_chat.id
+    for d in [nc_tasks, spam_tasks, slider_tasks]:
+        if chat_id in d:
+            for t in d[chat_id]: t.cancel()
+            del d[chat_id]
+    msg = update.message if update.message else update.callback_query.message
+    await msg.reply_text("𝑂𝐾𝐼 𝑌𝐿𝐿 ¡! 🐣")
+
+async def menu_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_owner(update.effective_user.id): return
+    kbd = [[InlineKeyboardButton("🛑 STOP ALL", callback_data='stop_all')],
+           [InlineKeyboardButton("📊 STATUS", callback_data='status')]]
+    await update.message.reply_text("✨ **FREAKY MENU**", reply_markup=InlineKeyboardMarkup(kbd))
+
+async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    q = update.callback_query
+    if q.data == 'stop_all': await stopall(update, context)
+    await q.answer()
 
 # ---------------------------
 # MAIN STARTUP
 # ---------------------------
 def build_app(token):
-    app = Application.builder().token(token).build()
-    app.add_handler(CommandHandler("menu", menu_cmd))
-    app.add_handler(CommandHandler("start", menu_cmd))
-    app.add_handler(CommandHandler("stopall", stopall))
-    app.add_handler(CallbackQueryHandler(button_callback))
-    # [Aapke baki saare ncdark, texts, etc. handlers yahan aayenge]
-    return app
+    application = Application.builder().token(token).build()
+    application.add_handler(CommandHandler("menu", menu_cmd))
+    application.add_handler(CommandHandler("nc", start_nc))
+    application.add_handler(CommandHandler("spam", start_spam))
+    application.add_handler(CommandHandler("stopall", stopall))
+    application.add_handler(CallbackQueryHandler(button_handler))
+    application.add_handler(ChatMemberHandler(auto_admin_handler, ChatMemberHandler.MY_CHAT_MEMBER))
+    return application
 
 async def main():
-    keep_alive() # Start Flask server
-    for token in TOKENS:
+    keep_alive()
+    for t in TOKENS:
         try:
-            app = build_app(token)
-            await app.initialize()
-            await app.start()
-            await app.updater.start_polling()
-            bots.append(app.bot)
-            apps.append(app)
-            print(f"🚀 Bot Ready")
-        except Exception as e:
-            print(f"❌ Error: {e}")
+            a = build_app(t)
+            await a.initialize()
+            await a.start()
+            await a.updater.start_polling()
+            bots.append(a.bot)
+        except: pass
     await asyncio.Event().wait()
 
 if __name__ == "__main__":
