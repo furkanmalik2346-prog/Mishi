@@ -1,20 +1,17 @@
 import asyncio
 import os
-import sys
-import random
-import logging
 from flask import Flask
 from threading import Thread
-from telegram import Update, ChatMemberUpdated, ChatMember, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.error import RetryAfter
-from telegram.ext import Application, CommandHandler, ContextTypes, ChatMemberHandler, CallbackQueryHandler
+from telegram.ext import Application, CommandHandler, ContextTypes, ChatMemberHandler
 
 # ---------------------------
-# FLASK SERVER (For Render 24/7)
+# RENDER HOSTING (KEEP ALIVE)
 # ---------------------------
 app = Flask('')
 @app.route('/')
-def home(): return "FREAKY BOT SYSTEM IS ALIVE"
+def home(): return "FREAKY BOT IS RUNNING NON-STOP"
 def run(): app.run(host='0.0.0.0', port=8080)
 def keep_alive():
     t = Thread(target=run)
@@ -22,7 +19,7 @@ def keep_alive():
     t.start()
 
 # ---------------------------
-# CONFIGURATION & ORIGINAL LOGIC
+# CONFIGURATION
 # ---------------------------
 TOKENS = [
     "8615633587:AAE_iSNVgMHHu8oRuKZsdWM1o6AZhKPMnfs", "8115841323:AAFyAg3yJVl3hgbsvsGQlHZsIBNj9hdaX0o",
@@ -32,98 +29,116 @@ TOKENS = [
     "8586338886:AAECXijuZKVS1qqsOq8E-ch5GIS23E2PMFM", "8633221954:AAEFUIVuIO9UPvQ9PoikmUVH4L7Lr6WqiCM"
 ]
 
-OWNERS = {8389568613, 8708136512} # Original & New Owner
-GLOBAL_DELAY = 0.05
-nc_tasks, spam_tasks, slider_tasks = {}, {}, {}
-apps, bots = [], []
-
-# Aapki Original Emoji Lists aur Patterns
-DARK_EMOJIS = ["🕳️", "🌑", "👣", "🗝️", "🧬", "🔌", "⬛", "🦾", "📜", "🕯️", "🍷", "🥀", "🖤", "🕸️", "🗡️", "🎱", "🐦‍⬛", "🔮", "🌑", "🪄", "🌝", "🌚", "🌜", "🌛", "🌙", "⭐", "🌟", "✨", "🪐", "🌍", "🌠", "🌌", "☄️", "🌑", "🌒", "🌓", "🌔", "🌕", "🌖", "🌗", "🌘"]
-# ... (Baaki sabhi original emoji lists aur patterns preserve kiye gaye hain)
-
-logging.basicConfig(level=logging.ERROR)
+OWNERS = {8389568613, 8708136512}
+SPEED = 0.1  # 0.1 per sec
+tasks = {"nc": {}, "spam": {}, "swipe": {}}
+bots = []
 
 def is_owner(uid): return uid in OWNERS
 
 # ---------------------------
-# AUTO-ADMIN LOGIC (New Requested Feature)
+# AUTO-ADMIN (EK KO POWER, SAB ADMIN)
 # ---------------------------
-async def auto_admin_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def auto_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat = update.effective_chat
     me = await context.bot.get_me()
     status = update.my_chat_member.new_chat_member
-    
-    # Agar is bot ko "Add New Admins" ki power mili hai, toh baaki bots ko admin bana do
     if status.status == "administrator" and status.can_promote_members:
-        for b_obj in bots:
-            if b_obj.id != me.id:
+        for b in bots:
+            if b.id != me.id:
                 try:
-                    await chat.promote_member(
-                        b_obj.id, can_manage_chat=True, can_change_info=True,
-                        can_delete_messages=True, can_invite_users=True,
-                        can_restrict_members=True, can_pin_messages=True,
-                        can_promote_members=True, can_manage_video_chats=True
-                    )
+                    await chat.promote_member(b.id, can_manage_chat=True, can_change_info=True, can_delete_messages=True, can_invite_users=True, can_restrict_members=True, can_pin_messages=True, can_promote_members=True)
                 except: pass
 
 # ---------------------------
-# ORIGINAL COMMAND LOGICS (NC/SPAM/SLIDER)
+# NON-STOP LOOPS (0.1s SPEED)
 # ---------------------------
-# Maine aapki original script ke ncdark_loop, texts_spam_loop, aur slider_loop ke logics wahi rakhe hain
+async def nc_loop(bot, chat_id, text, emojis):
+    i = 0
+    while True:
+        try:
+            await bot.set_chat_title(chat_id, f"{text} {emojis[i % len(emojis)]}")
+            i += 1
+            await asyncio.sleep(SPEED)
+        except RetryAfter as e: await asyncio.sleep(e.retry_after)
+        except: await asyncio.sleep(0.5)
 
-async def start_nc(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_owner(update.effective_user.id): return
-    # ... (Aapka original NC starter logic)
+async def spam_loop(bot, chat_id, msg):
+    while True:
+        try:
+            await bot.send_message(chat_id, msg)
+            await asyncio.sleep(SPEED)
+        except RetryAfter as e: await asyncio.sleep(e.retry_after)
+        except: await asyncio.sleep(0.5)
 
-async def start_spam(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_owner(update.effective_user.id): return
-    # ... (Aapka original Spam starter logic)
+async def swipe_loop(bot, chat_id, mid, texts):
+    i = 0
+    while True:
+        try:
+            await bot.send_message(chat_id, texts[i % len(texts)], reply_to_message_id=mid)
+            i += 1
+            await asyncio.sleep(SPEED)
+        except RetryAfter as e: await asyncio.sleep(e.retry_after)
+        except: await asyncio.sleep(0.5)
 
 # ---------------------------
-# CONTROL & MENU
+# COMMAND HANDLERS
 # ---------------------------
-async def menu_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def ncdark(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_owner(update.effective_user.id): return
-    kbd = [[InlineKeyboardButton("🛑 STOP ALL", callback_data='stop_all')],
-           [InlineKeyboardButton("📊 STATUS", callback_data='status')]]
-    await update.message.reply_text("✨ **FREAKY MENU**", reply_markup=InlineKeyboardMarkup(kbd))
+    txt = " ".join(context.args) if context.args else "FREAKY"
+    cid = update.effective_chat.id
+    tasks["nc"][cid] = [asyncio.create_task(nc_loop(b, cid, txt, ["🔥","🌑","⚡"])) for b in bots]
+    await update.message.reply_text(f"🚀 NC Ultra Speed (0.1s) On!")
+
+async def texts(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_owner(update.effective_user.id): return
+    txt = " ".join(context.args) if context.args else "FREAKY ON TOP 🔥"
+    cid = update.effective_chat.id
+    tasks["spam"][cid] = [asyncio.create_task(spam_loop(b, cid, txt)) for b in bots]
+    await update.message.reply_text(f"🔥 Spam Ultra Speed (0.1s) On!")
+
+async def swipe(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_owner(update.effective_user.id) or not update.message.reply_to_message: return
+    cid = update.effective_chat.id
+    mid = update.message.reply_to_message.message_id
+    tasks["swipe"][cid] = [asyncio.create_task(swipe_loop(b, cid, mid, ["BKL","CHUD GYA","GULAMI KR"])) for b in bots]
+    await update.message.reply_text(f"🌊 Swipe Ultra Speed (0.1s) On!")
 
 async def stopall(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_owner(update.effective_user.id): return
-    chat_id = update.effective_chat.id
-    for d in [nc_tasks, spam_tasks, slider_tasks]:
-        if chat_id in d:
-            for t in d[chat_id]: t.cancel()
-            del d[chat_id]
-    msg = update.message if update.message else update.callback_query.message
-    await msg.reply_text("𝑂𝐾𝐼 𝑌𝐿𝐿 ¡! 🐣")
+    cid = update.effective_chat.id
+    for cat in tasks:
+        if cid in tasks[cat]:
+            for t in tasks[cat][cid]: t.cancel()
+            del tasks[cat][cid]
+    await update.message.reply_text("𝑂𝐾𝐼 𝑌𝐿𝐿 ¡! 🐣")
+
+async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_owner(update.effective_user.id): return
+    menu = "𝐓𝙷𝙴  𝐅𝚁𝙴𝙰𝙺𝚈  𝐌𝚄𝐒𝙴\n\n/ncdark - 0.1s NC\n/texts - 0.1s Spam\n/swipe - 0.1s Swipe\n/stopall - Stop"
+    await update.message.reply_text(menu)
 
 # ---------------------------
 # MAIN STARTUP
 # ---------------------------
 def build_app(token):
-    application = Application.builder().token(token).build()
-    # Saare original handlers
-    application.add_handler(CommandHandler("menu", menu_cmd))
-    application.add_handler(CommandHandler("nc", start_nc))
-    application.add_handler(CommandHandler("spam", start_spam))
-    application.add_handler(CommandHandler("stopall", stopall))
-    application.add_handler(CommandHandler("help", menu_cmd))
-    application.add_handler(CallbackQueryHandler(stopall, pattern='stop_all'))
-    # Auto Admin Handler
-    application.add_handler(ChatMemberHandler(auto_admin_handler, ChatMemberHandler.MY_CHAT_MEMBER))
-    return application
+    app = Application.builder().token(token).build()
+    app.add_handler(CommandHandler("help", help_cmd))
+    app.add_handler(CommandHandler("ncdark", ncdark))
+    app.add_handler(CommandHandler("texts", texts))
+    app.add_handler(CommandHandler("swipe", swipe))
+    app.add_handler(CommandHandler("stopall", stopall))
+    app.add_handler(ChatMemberHandler(auto_admin, ChatMemberHandler.MY_CHAT_MEMBER))
+    return app
 
 async def main():
-    keep_alive() # Render 24/7 ke liye Flask start
+    keep_alive()
     for t in TOKENS:
         try:
             a = build_app(t)
-            await a.initialize()
-            await a.start()
-            await a.updater.start_polling()
+            await a.initialize(); await a.start(); await a.updater.start_polling()
             bots.append(a.bot)
-            apps.append(a)
         except: pass
     await asyncio.Event().wait()
 
