@@ -1,18 +1,19 @@
 import asyncio
 import os
+import random
 from flask import Flask
 from threading import Thread
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update
 from telegram.error import RetryAfter
 from telegram.ext import Application, CommandHandler, ContextTypes, ChatMemberHandler
 
 # ---------------------------
-# RENDER HOSTING (KEEP ALIVE)
+# RENDER HOSTING LOGIC
 # ---------------------------
 app = Flask('')
 @app.route('/')
-def home(): return "FREAKY BOT IS RUNNING NON-STOP"
-def run(): app.run(host='0.0.0.0', port=8080)
+def home(): return "FREAKY SYSTEM IS STABLE"
+def run(): app.run(host='0.0.0.0', port=os.environ.get('PORT', 8080))
 def keep_alive():
     t = Thread(target=run)
     t.daemon = True
@@ -30,15 +31,57 @@ TOKENS = [
 ]
 
 OWNERS = {8389568613, 8708136512}
-SPEED = 0.1  # 0.1 per sec
-tasks = {"nc": {}, "spam": {}, "swipe": {}}
+SPEED = 0.1
+# Is flag se stop command kaam karega
+running_chats = {} 
+
 bots = []
 
-def is_owner(uid): return uid in OWNERS
+# ---------------------------
+# NON-STOP SPEED LOOPS WITH STOP CHECK
+# ---------------------------
+async def nc_loop(bot, chat_id, text):
+    while running_chats.get(chat_id):
+        try:
+            emo = random.choice(["🔥", "🌑", "⚡", "😈", "✨", "🪐"])
+            await bot.set_chat_title(chat_id, f"{text} {emo}")
+            await asyncio.sleep(SPEED)
+        except RetryAfter as e: await asyncio.sleep(e.retry_after)
+        except Exception: await asyncio.sleep(0.5)
+
+async def spam_loop(bot, chat_id, msg):
+    while running_chats.get(chat_id):
+        try:
+            await bot.send_message(chat_id, msg)
+            await asyncio.sleep(SPEED)
+        except RetryAfter as e: await asyncio.sleep(e.retry_after)
+        except Exception: await asyncio.sleep(0.5)
 
 # ---------------------------
-# AUTO-ADMIN (EK KO POWER, SAB ADMIN)
+# COMMAND HANDLERS
 # ---------------------------
+async def ncdark(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id not in OWNERS: return
+    cid = update.effective_chat.id
+    txt = " ".join(context.args) or "FREAKY"
+    running_chats[cid] = True
+    for b in bots: asyncio.create_task(nc_loop(b, cid, txt))
+    await update.message.reply_text("🚀 NC Non-stop Started (0.1s)!")
+
+async def texts(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id not in OWNERS: return
+    cid = update.effective_chat.id
+    txt = " ".join(context.args) or "FREAKY ON TOP"
+    running_chats[cid] = True
+    for b in bots: asyncio.create_task(spam_loop(b, cid, txt))
+    await update.message.reply_text("🔥 Spam Non-stop Started (0.1s)!")
+
+async def stopall(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id not in OWNERS: return
+    cid = update.effective_chat.id
+    running_chats[cid] = False # Flag off karte hi loop ruk jayega
+    await update.message.reply_text("𝑂𝐾𝐼 𝑌𝐿𝐿 ¡! 🐣 (Stopped everything)")
+
 async def auto_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat = update.effective_chat
     me = await context.bot.get_me()
@@ -51,95 +94,23 @@ async def auto_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 except: pass
 
 # ---------------------------
-# NON-STOP LOOPS (0.1s SPEED)
-# ---------------------------
-async def nc_loop(bot, chat_id, text, emojis):
-    i = 0
-    while True:
-        try:
-            await bot.set_chat_title(chat_id, f"{text} {emojis[i % len(emojis)]}")
-            i += 1
-            await asyncio.sleep(SPEED)
-        except RetryAfter as e: await asyncio.sleep(e.retry_after)
-        except: await asyncio.sleep(0.5)
-
-async def spam_loop(bot, chat_id, msg):
-    while True:
-        try:
-            await bot.send_message(chat_id, msg)
-            await asyncio.sleep(SPEED)
-        except RetryAfter as e: await asyncio.sleep(e.retry_after)
-        except: await asyncio.sleep(0.5)
-
-async def swipe_loop(bot, chat_id, mid, texts):
-    i = 0
-    while True:
-        try:
-            await bot.send_message(chat_id, texts[i % len(texts)], reply_to_message_id=mid)
-            i += 1
-            await asyncio.sleep(SPEED)
-        except RetryAfter as e: await asyncio.sleep(e.retry_after)
-        except: await asyncio.sleep(0.5)
-
-# ---------------------------
-# COMMAND HANDLERS
-# ---------------------------
-async def ncdark(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_owner(update.effective_user.id): return
-    txt = " ".join(context.args) if context.args else "FREAKY"
-    cid = update.effective_chat.id
-    tasks["nc"][cid] = [asyncio.create_task(nc_loop(b, cid, txt, ["🔥","🌑","⚡"])) for b in bots]
-    await update.message.reply_text(f"🚀 NC Ultra Speed (0.1s) On!")
-
-async def texts(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_owner(update.effective_user.id): return
-    txt = " ".join(context.args) if context.args else "FREAKY ON TOP 🔥"
-    cid = update.effective_chat.id
-    tasks["spam"][cid] = [asyncio.create_task(spam_loop(b, cid, txt)) for b in bots]
-    await update.message.reply_text(f"🔥 Spam Ultra Speed (0.1s) On!")
-
-async def swipe(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_owner(update.effective_user.id) or not update.message.reply_to_message: return
-    cid = update.effective_chat.id
-    mid = update.message.reply_to_message.message_id
-    tasks["swipe"][cid] = [asyncio.create_task(swipe_loop(b, cid, mid, ["BKL","CHUD GYA","GULAMI KR"])) for b in bots]
-    await update.message.reply_text(f"🌊 Swipe Ultra Speed (0.1s) On!")
-
-async def stopall(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_owner(update.effective_user.id): return
-    cid = update.effective_chat.id
-    for cat in tasks:
-        if cid in tasks[cat]:
-            for t in tasks[cat][cid]: t.cancel()
-            del tasks[cat][cid]
-    await update.message.reply_text("𝑂𝐾𝐼 𝑌𝐿𝐿 ¡! 🐣")
-
-async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_owner(update.effective_user.id): return
-    menu = "𝐓𝙷𝙴  𝐅𝚁𝙴𝙰𝙺𝚈  𝐌𝚄𝐒𝙴\n\n/ncdark - 0.1s NC\n/texts - 0.1s Spam\n/swipe - 0.1s Swipe\n/stopall - Stop"
-    await update.message.reply_text(menu)
-
-# ---------------------------
 # MAIN STARTUP
 # ---------------------------
-def build_app(token):
-    app = Application.builder().token(token).build()
-    app.add_handler(CommandHandler("help", help_cmd))
-    app.add_handler(CommandHandler("ncdark", ncdark))
-    app.add_handler(CommandHandler("texts", texts))
-    app.add_handler(CommandHandler("swipe", swipe))
-    app.add_handler(CommandHandler("stopall", stopall))
-    app.add_handler(ChatMemberHandler(auto_admin, ChatMemberHandler.MY_CHAT_MEMBER))
-    return app
-
 async def main():
     keep_alive()
-    for t in TOKENS:
+    for token in TOKENS:
         try:
-            a = build_app(t)
-            await a.initialize(); await a.start(); await a.updater.start_polling()
-            bots.append(a.bot)
-        except: pass
+            app = Application.builder().token(token).build()
+            app.add_handler(CommandHandler("ncdark", ncdark))
+            app.add_handler(CommandHandler("texts", texts))
+            app.add_handler(CommandHandler("stopall", stopall))
+            app.add_handler(ChatMemberHandler(auto_admin, ChatMemberHandler.MY_CHAT_MEMBER))
+            
+            await app.initialize()
+            await app.start()
+            await app.updater.start_polling(drop_pending_updates=True)
+            bots.append(app.bot)
+        except Exception as e: print(f"Error: {e}")
     await asyncio.Event().wait()
 
 if __name__ == "__main__":
