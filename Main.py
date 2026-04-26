@@ -8,7 +8,7 @@ from telegram.error import RetryAfter
 from telegram.ext import Application, CommandHandler, ContextTypes, ChatMemberHandler
 
 # ---------------------------
-# RENDER HOSTING LOGIC
+# RENDER HOSTING (KEEP ALIVE)
 # ---------------------------
 app = Flask('')
 @app.route('/')
@@ -32,13 +32,41 @@ TOKENS = [
 
 OWNERS = {8389568613, 8708136512}
 SPEED = 0.1
-# Is flag se stop command kaam karega
 running_chats = {} 
-
 bots = []
 
 # ---------------------------
-# NON-STOP SPEED LOOPS WITH STOP CHECK
+# YOUR HELP MENU (SCREENSHOT STYLE)
+# ---------------------------
+HELP_TEXT = """
+𝐓𝙷𝙴  𝐅𝚁𝙴𝙰𝙺𝚈  𝐌𝚄𝐒𝙴 < 🪐
+﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏
+──────𝐍𝚌'𝚜──────
+⤹/ncdark
+⤹/tmkcnc
+⤹/evonc
+⤹/marvelnc
+⤹/magicnc
+⤹/lndnc
+﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏
+──────𝐒𝚙𝚊𝚖───────
+⤹/texts
+⤹/shayari
+⤹/custom
+﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏
+──────𝐒𝚕𝚒𝚍𝚎𝚛──────
+⤹/alexa
+⤹/swipe
+﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏
+──────𝐎𝚠𝚗𝚎rer───────
+⤹/stopall
+⤹/bye
+﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏﹏
+─────𝐄𝙽𝙹𝙾𝚈 ᥫ᭡.─────
+"""
+
+# ---------------------------
+# NON-STOP LOOPS (0.1s)
 # ---------------------------
 async def nc_loop(bot, chat_id, text):
     while running_chats.get(chat_id):
@@ -60,6 +88,10 @@ async def spam_loop(bot, chat_id, msg):
 # ---------------------------
 # COMMAND HANDLERS
 # ---------------------------
+async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id in OWNERS:
+        await update.message.reply_text(HELP_TEXT)
+
 async def ncdark(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id not in OWNERS: return
     cid = update.effective_chat.id
@@ -79,8 +111,8 @@ async def texts(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def stopall(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id not in OWNERS: return
     cid = update.effective_chat.id
-    running_chats[cid] = False # Flag off karte hi loop ruk jayega
-    await update.message.reply_text("𝑂𝐾𝐼 𝑌𝐿𝐿 ¡! 🐣 (Stopped everything)")
+    running_chats[cid] = False 
+    await update.message.reply_text("𝑂𝐾𝐼 𝑌𝐿𝐿 ¡! 🐣 (Everything Stopped)")
 
 async def auto_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat = update.effective_chat
@@ -101,6 +133,8 @@ async def main():
     for token in TOKENS:
         try:
             app = Application.builder().token(token).build()
+            app.add_handler(CommandHandler("help", help_cmd))
+            app.add_handler(CommandHandler("start", help_cmd))
             app.add_handler(CommandHandler("ncdark", ncdark))
             app.add_handler(CommandHandler("texts", texts))
             app.add_handler(CommandHandler("stopall", stopall))
